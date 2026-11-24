@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>المراقب الذكي لحرارة المحول الكهربائي</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --safe: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; }
+    body {
+      margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+      line-height: 1.6;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    header {
+      text-align: center; padding: 20px 12px; margin-bottom: 20px;
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 1px solid var(--border); border-radius: 16px;
+    }
+    header h1 { margin: 0 0 8px; font-size: 1.5rem; color: var(--accent); }
+    header p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px; margin-bottom: 20px;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 18px;
+    }
+    .card h2 {
+      margin: 0 0 14px; font-size: 1.1rem; color: var(--accent);
+      border-bottom: 1px solid var(--border); padding-bottom: 8px;
+    }
+    .control { margin-bottom: 14px; }
+    .control label {
+      display: flex; justify-content: space-between;
+      font-size: 0.92rem; margin-bottom: 6px;
+    }
+    .control span.val { color: var(--accent); font-weight: bold; }
+    input[type="range"], select {
+      width: 100%; accent-color: var(--accent);
+    }
+    select {
+      background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      padding: 10px; border-radius: 10px; font-size: 0.95rem;
+    }
+    .result-box {
+      text-align: center; padding: 20px; border-radius: 14px;
+      background: var(--bg); border: 2px solid var(--border); margin-top: 10px;
+    }
+    .temp-value { font-size: 2.8rem; font-weight: 800; margin: 6px 0; }
+    .badge {
+      display: inline-block; padding: 6px 14px; border-radius: 999px;
+      font-size: 0.9rem; font-weight: bold;
+    }
+    .stats-row {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 10px; margin-top: 14px;
+    }
+    .stat-mini {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 12px; padding: 10px; text-align: center;
+    }
+    .stat-mini .num { font-size: 1.15rem; font-weight: bold; color: var(--accent); }
+    .stat-mini .lbl { font-size: 0.78rem; color: var(--muted); }
+    .chart-wrap { position: relative; height: 280px; width: 100%; }
+    footer {
+      text-align: center; color: var(--muted); font-size: 0.82rem;
+      margin-top: 20px; padding-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⚡ التنبؤ الذكي بحرارة المحول الكهربائي</h1>
+      <p>نموذج Gradient Boosting مدرّب على 80% من البيانات (1,171 قراءة) ومُختبر على 20% (293 قراءة)</p>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2>🎛️ إدخال بيانات التشغيل</h2>
+
+        <div class="control">
+          <label>الساعة (1 – 24) <span class="val" id="hourVal">8:00</span></label>
+          <input type="range" id="hour" min="1" max="24" step="1" value="8" />
+        </div>
+
+        <div class="control">
+          <label>الحمل الكهربائي (MW) <span class="val" id="loadVal">46 MW</span></label>
+          <input type="range" id="load" min="36.5" max="56.5" step="0.5" value="46" />
+        </div>
+
+        <div class="control">
+          <label>الجهد الكهربائي (KV) <span class="val" id="voltVal">128 KV</span></label>
+          <input type="range" id="volt" min="126.5" max="130.5" step="0.5" value="128" />
+        </div>
+
+        <div class="control">
+          <label>الشهر</label>
+          <select id="month">
+            <option value="8">أغسطس (شهر 8)</option>
+            <option value="9">سبتمبر (شهر 9)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🌡️ نتيجة التنبؤ وحالة السلامة</h2>
+        <div class="result-box" id="resultBox">
+          <div style="color: var(--muted); font-size: 0.9rem;">درجة حرارة المحول المتوقعة</div>
+          <div class="temp-value" id="predTemp">-- °C</div>
+          <div class="badge" id="statusBadge">جاري الحساب...</div>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-mini">
+            <div class="num">70.1%</div>
+            <div class="lbl">دقة الاختبار (R²)</div>
+          </div>
+          <div class="stat-mini">
+            <div class="num">±0.74°C</div>
+            <div class="lbl">متوسط الخطأ (MAE)</div>
+          </div>
+          <div class="stat-mini">
+            <div class="num">1,464</div>
+            <div class="lbl">إجمالي القراءات</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📊 متوسط الحرارة والحمل على مدار 24 ساعة (بعد التنظيف)</h2>
+      <div class="chart-wrap">
+        <canvas id="hourlyChart"></canvas>
+      </div>
+    </div>
+
+    <footer>
+      تم البناء والتدريب بلغة Python (Scikit-Learn) وتصدير النموذج للعمل مباشرة على المتصفح والهاتف.
+    </footer>
+  </div>
+
+  <script>
+    // النموذج المدرّب الفعلي (Gradient Boosting: 40 trees, max_depth=3)
+    const MODEL = {"init":56.9646,"lr":0.1,"trees":[[0,12.5,[0,3.5,[0,2.5,-0.7646,0.5865],[0,9.5,2.5716,0.8688]],[0,16.5,[0,14.5,-0.159,-1.0709],[1,49.5,-1.6305,-2.2115]]],[0,12.5,[0,3.5,[0,2.5,-0.6881,0.5278],[0,9.5,2.3145,0.7819]],[0,16.5,[0,14.5,-0.1431,-0.9638],[1,49.5,-1.4674,-1.9903]]],[0,12.5,[0,3.5,[0,1.5,-0.9793,0.1426],[0,9.5,2.083,0.7037]],[0,15.5,[1,44.5,-1.4151,-0.1706],[0,21.5,-1.3142,-1.7543]]],[0,14.5,[0,2.5,[2,126.75,-1.6279,-0.4075],[0,10.5,1.6029,0.1105]],[0,16.5,[2,126.75,0.6274,-0.8817],[1,49.5,-1.1763,-1.6398]]],[0,12.5,[0,3.5,[2,126.75,-1.3974,-0.0628],[2,127.5,0.2156,1.5965]],[0,16.5,[1,42.5,-1.7412,-0.285],[1,49.5,-1.0586,-1.4758]]],[0,14.5,[0,2.5,[2,126.75,-1.3254,-0.3605],[0,10.5,1.3208,0.0736]],[2,126.75,[1,52.5,0.1663,-3.9127],[0,21.5,-0.9448,-1.4285]]],[0,12.5,[0,3.5,[0,1.5,-0.756,0.0537],[3,8.5,0.5849,1.5878]],[0,16.5,[1,44.5,-1.245,-0.1906],[2,129.5,-1.0727,-0.5517]]],[0,14.5,[2,127.5,[0,6.5,-0.5132,0.1421],[0,2.5,-0.5059,0.9749]],[2,126.75,[1,49.5,0.4431,-2.5944],[0,21.5,-0.7703,-1.186]]],[0,12.5,[0,3.5,[2,126.75,-1.1371,-0.0553],[0,9.5,1.2492,0.2282]],[0,16.5,[1,44.5,-1.1316,-0.1645],[2,129.5,-0.881,-0.4043]]],[0,10.5,[0,3.5,[2,126.75,-1.0234,-0.0498],[3,8.5,0.5423,1.5362]],[0,14.5,[1,41.0,-1.6029,0.049],[2,126.75,-0.1742,-0.7299]]],[0,13.5,[2,127.5,[0,6.5,-0.4438,0.1182],[0,3.5,-0.1152,0.8978]],[0,16.5,[1,44.5,-1.0718,-0.2037],[1,56.25,-0.6448,-1.7167]]],[0,10.5,[0,3.5,[0,1.5,-0.5791,0.0963],[2,127.5,-0.3057,1.0156]],[0,14.5,[1,42.5,-1.2649,0.0305],[2,126.75,-0.0986,-0.5974]]],[0,10.5,[0,3.5,[0,1.5,-0.5212,0.0867],[3,8.5,0.3541,1.1912]],[0,15.5,[2,128.5,0.0275,-0.6789],[1,42.5,-1.3125,-0.502]]],[0,10.5,[0,3.5,[2,126.75,-0.8545,0.0009],[1,46.5,0.8602,-0.2519]],[0,16.5,[2,128.5,0.0294,-0.4922],[2,129.5,-0.5559,-0.0901]]],[0,10.5,[0,3.5,[0,1.5,-0.4589,0.0898],[3,8.5,0.2517,1.0012]],[0,16.5,[1,42.5,-0.8932,-0.0397],[1,56.25,-0.4229,-1.426]]],[0,10.5,[1,45.5,[2,127.5,-0.0964,0.7162],[3,8.5,-0.8044,0.5249]],[2,127.5,[1,52.5,0.1761,-2.0454],[0,21.5,-0.2607,-0.642]]],[0,10.5,[0,3.5,[0,1.5,-0.4492,0.0663],[2,127.5,-0.3681,0.6414]],[2,127.5,[1,52.5,0.1585,-1.8409],[0,21.5,-0.2347,-0.5778]]],[0,9.5,[1,46.5,[0,3.5,-0.059,0.6752],[2,129.5,-1.5407,0.5153]],[0,14.5,[2,128.5,0.1012,-0.6417],[2,126.75,0.0712,-0.3362]]],[1,44.5,[1,36.75,[0,6.5,-0.8599,0.1051],[0,9.5,0.5833,-0.2035]],[2,129.5,[3,8.5,-0.5147,-0.0366],[1,56.25,0.7251,-0.5796]]],[0,14.5,[3,8.5,[1,44.5,0.2082,-0.3682],[0,1.5,-0.3316,0.4499]],[2,126.75,[1,49.5,0.7063,-1.7907],[0,21.5,-0.2138,-0.4767]]],[0,9.5,[0,6.5,[2,126.75,-0.7226,0.1619],[2,128.5,1.0041,0.2145]],[0,16.5,[2,128.5,0.0805,-0.3459],[2,129.5,-0.3087,0.087]]],[1,44.5,[1,36.75,[0,6.5,-0.7698,0.0545],[0,10.5,0.4576,-0.2389]],[2,129.5,[3,8.5,-0.422,-0.0274],[1,56.25,0.68,-0.4824]]],[1,45.5,[1,36.75,[0,6.5,-0.6929,0.049],[0,9.5,0.3961,-0.0929]],[2,129.5,[1,53.0,-0.1608,-1.3618],[1,56.25,0.6073,-0.4341]]],[0,14.5,[3,8.5,[1,44.5,0.1448,-0.3041],[0,2.5,-0.1619,0.3677]],[2,126.75,[1,49.5,0.7152,-1.4582],[0,21.5,-0.1461,-0.3893]]],[1,45.5,[2,127.5,[1,42.5,-0.4123,0.1633],[0,10.5,0.3583,-0.1221]],[2,129.5,[2,128.5,-0.0682,-0.4881],[1,56.25,0.5739,-0.3653]]],[0,16.5,[3,8.5,[1,44.5,0.0986,-0.2114],[0,11.5,0.3221,0.0197]],[1,49.5,[2,127.25,0.5673,-0.1687],[2,129.5,-0.4535,0.5402]]],[0,16.5,[0,3.5,[2,126.75,-0.6111,-0.1352],[0,8.5,0.3272,0.0272]],[1,56.25,[1,55.0,-0.1648,0.9797],[0,18.5,0.9145,-1.957]]],[1,45.5,[1,36.75,[2,129.5,-0.5226,0.2994],[2,129.5,0.2293,-0.4308]],[2,129.5,[0,7.5,-0.7308,-0.0878],[1,49.5,-0.1564,0.592]]],[0,16.5,[0,4.5,[1,36.75,-0.7337,-0.096],[0,8.5,0.3729,0.0261]],[1,56.25,[1,55.0,-0.1433,0.8396],[0,21.5,-0.0926,-2.692]]],[0,16.5,[3,8.5,[2,128.5,0.0543,-0.235],[0,4.5,-0.0211,0.2466]],[1,56.25,[1,55.0,-0.129,0.7556],[0,18.5,0.7731,-1.6813]]],[1,44.5,[1,36.75,[2,129.5,-0.4698,0.3022],[2,129.5,0.2405,-0.4197]],[2,129.5,[0,7.5,-0.6816,-0.0593],[1,56.25,0.5026,-0.2678]]],[0,14.5,[3,8.5,[1,44.5,0.0924,-0.247],[0,6.5,0.0262,0.3043]],[1,42.5,[1,40.5,-0.03,-2.2114],[2,126.75,0.3259,-0.1178]]],[1,56.25,[0,12.5,[0,6.5,-0.0588,0.2394],[1,42.5,-0.6979,-0.0415]],[0,21.5,[2,129.5,-1.2331,0.1282],[0,22.5,-2.2161,-2.2161]]],[1,44.5,[0,4.5,[2,129.5,-0.1316,0.9107],[0,9.5,0.3844,-0.1613]],[2,129.5,[1,53.0,-0.0708,-1.0263],[1,49.5,-0.1161,0.5672]]],[1,56.25,[0,1.5,[1,44.5,-0.5048,-0.1599],[0,9.5,0.137,-0.035]],[0,21.5,[0,10.5,-1.0193,0.1314],-2.0512]],[0,20.5,[0,4.5,[1,36.75,-0.6354,-0.0736],[0,8.5,0.2603,-0.0001]],[1,56.25,[1,55.0,-0.1397,1.9865],[0,21.5,-0.8157,-1.8461]]],[1,56.25,[2,129.5,[1,49.5,0.0379,-0.228],[1,49.5,-0.1155,1.0237]],[0,21.5,[0,12.5,-0.7227,0.2725],[0,22.5,-1.6615,-1.6615]]],[3,8.5,[2,129.5,[1,49.5,-0.0366,-0.9235],[1,48.5,-0.1583,0.4226]],[0,11.5,[0,6.5,0.0089,0.4111],[2,128.5,-0.0996,0.1772]]],[1,44.5,[2,127.5,[0,22.5,-0.2227,2.1778],[0,1.5,-0.4328,0.1842]],[2,129.5,[0,7.5,-0.5584,-0.0345],[0,17.5,0.4854,-0.0581]]],[1,56.25,[1,36.75,[2,129.5,-0.4366,0.3149],[1,44.5,0.1252,-0.0238]],[0,18.5,[0,12.5,-0.6592,0.5556],[0,21.5,-0.8523,-1.5318]]]]};
+
+    function predictTemp(hour, load, volt, month) {
+      const x = [hour, load, volt, month];
+      let val = MODEL.init;
+      for (const tree of MODEL.trees) {
+        let node = tree;
+        while (Array.isArray(node)) {
+          node = x[node[0]] <= node[1] ? node[2] : node[3];
+        }
+        val += MODEL.lr * node;
+      }
+      return val;
+    }
+
+    const hourEl = document.getElementById('hour');
+    const loadEl = document.getElementById('load');
+    const voltEl = document.getElementById('volt');
+    const monthEl = document.getElementById('month');
+
+    function updatePrediction() {
+      const h = parseFloat(hourEl.value);
+      const l = parseFloat(loadEl.value);
+      const v = parseFloat(voltEl.value);
+      const m = parseFloat(monthEl.value);
+
+      document.getElementById('hourVal').textContent = `${h}:00`;
+      document.getElementById('loadVal').textContent = `${l} MW`;
+      document.getElementById('voltVal').textContent = `${v} KV`;
+
+      const temp = predictTemp(h, l, v, m);
+      const predEl = document.getElementById('predTemp');
+      const badgeEl = document.getElementById('statusBadge');
+      const boxEl = document.getElementById('resultBox');
+
+      predEl.textContent = `${temp.toFixed(1)} °C`;
+
+      if (temp < 57) {
+        badgeEl.textContent = '✅ حرارة طبيعية وآمنة';
+        badgeEl.style.background = 'rgba(34,197,94,0.2)';
+        badgeEl.style.color = '#4ade80';
+        boxEl.style.borderColor = '#22c55e';
+      } else if (temp < 59.5) {
+        badgeEl.textContent = '⚠️ حرارة مرتفعة نسبياً (مراقبة)';
+        badgeEl.style.background = 'rgba(245,158,11,0.2)';
+        badgeEl.style.color = '#fbbf24';
+        boxEl.style.borderColor = '#f59e0b';
+      } else {
+        badgeEl.textContent = '🔥 ذروة حرارية — يُنصح بفحص التبريد';
+        badgeEl.style.background = 'rgba(239,68,68,0.2)';
+        badgeEl.style.color = '#f87171';
+        boxEl.style.borderColor = '#ef4444';
+      }
+    }
+
+    [hourEl, loadEl, voltEl, monthEl].forEach(el => el.addEventListener('input', updatePrediction));
+    updatePrediction();
+
+    // الرسم البياني للبيانات الحقيقية بعد التنظيف
+    const hours = Array.from({length: 24}, (_, i) => `${i + 1}:00`);
+    const hourlyTemp = [55.9, 56.66, 57.59, 59.13, 59.3, 59.35, 59.95, 59.96, 59.24, 58.47, 57.66, 57.54, 56.93, 56.84, 55.92, 55.8, 55.18, 55.2, 55.2, 55.2, 55.21, 54.93, 54.58, 55.19];
+    const hourlyLoad = [45.11, 43.43, 42.42, 40.82, 40.25, 43.16, 42.76, 44.68, 43.93, 46.31, 47.3, 47.46, 47.18, 47.07, 47.75, 48.16, 46.62, 46.98, 49.73, 49.66, 49.83, 49.48, 48.96, 48.35];
+
+    new Chart(document.getElementById('hourlyChart'), {
+      type: 'line',
+      data: {
+        labels: hours,
+        datasets: [
+          {
+            label: 'متوسط حرارة المحول (°C)',
+            data: hourlyTemp,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.15)',
+            tension: 0.35,
+            fill: true,
+            yAxisID: 'y'
+          },
+          {
+            label: 'متوسط الحمل (MW)',
+            data: hourlyLoad,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            tension: 0.35,
+            fill: false,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#f8fafc' } } },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+          y: {
+            position: 'right',
+            ticks: { color: '#fbbf24' },
+            grid: { color: '#334155' },
+            title: { display: true, text: 'الحرارة (°C)', color: '#fbbf24' }
+          },
+          y1: {
+            position: 'left',
+            ticks: { color: '#38bdf8' },
+            grid: { drawOnChartArea: false },
+            title: { display: true, text: 'الحمل (MW)', color: '#38bdf8' }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
